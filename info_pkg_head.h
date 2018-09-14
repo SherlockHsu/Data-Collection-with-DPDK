@@ -7,6 +7,7 @@
 #define INFO_PKG_HEAD_LEN 48
 #define INFO_PKG_REMAIN_LEN 20
 #define MAX_PKG_LEN 1360
+#define DATA_END_LEN 8
 
 typedef struct
 {

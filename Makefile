@@ -41,7 +41,7 @@ RTE_TARGET ?= x86_64-native-linuxapp-gcc
 include $(RTE_SDK)/mk/rte.vars.mk
 
 # binary name
-APP = l2fwd
+APP = main
 
 # all source are stored in SRCS-y
 SRCS-y := main.c info_pkg_head.c udp_head.c

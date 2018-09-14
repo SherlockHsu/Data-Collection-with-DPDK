@@ -1,4 +1,4 @@
-//版本号:1.1
+//version: 2.1
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -46,7 +46,7 @@
 
 static volatile bool force_quit;
 
-#define PKG_LEN (MAX_PKG_LEN + INFO_PKG_HEAD_LEN)
+#define PKG_LEN (MAX_PKG_LEN + INFO_PKG_HEAD_LEN + DATA_END_LEN)
 
 #define RTE_LOGTYPE_L2FWD RTE_LOGTYPE_USER1
 
@@ -94,7 +94,7 @@ static const struct rte_eth_conf port_conf = {
 
 struct rte_mempool *l2fwd_pktmbuf_pool = NULL;
 struct rte_ring *ring_send;
-struct rte_ring *ring_recieve;
+struct rte_ring *ring_receive;
 /* Per-port statistics struct */
 struct l2fwd_port_statistics
 {
@@ -163,11 +163,11 @@ static void print_mbuf_send(struct rte_mbuf *m)
 	fprintf(fp, "over\n");
 	fclose(fp);
 }
-static void print_mbuf_recieve(struct rte_mbuf *m)
+static void print_mbuf_receive(struct rte_mbuf *m)
 {
 	uint8_t *adcnt;
 	FILE *fp;
-	fp = fopen("recieve_data.txt", "a");
+	fp = fopen("receive_data.txt", "a");
 	fprintf(fp, "buf_addr:%d\n", m->buf_addr);
 	fprintf(fp, "pkt_len:%d\n", m->pkt_len);
 	fprintf(fp, "data_len:%d\n", m->data_len);
@@ -198,13 +198,13 @@ int read_from_txt(char *a, int num, uint8_t *data_to_be_sent) //从文件中将�
 
 unsigned char data_to_be_sent[2048] = {0};
 unsigned char packet_to_be_sent[2048] = {0};
-unsigned char data_recieved[2048] = {0};
+unsigned char data_received[2048] = {0};
 volatile uint8_t send_en = 0x00; //此变量后面改为全局变量 00停止发送  01开始发送
 int err_pkg_times = 0;
-int num_err_pkg = 0;
-int num_data_nvld = 0;
-int correct_BE = 0;
-int correct_ED = 0;
+int err_pkg_num = 0;
+int nvld_pkg_num = 0;
+// int correct_BE = 0;
+// int correct_ED = 0;
 
 // int package(mac_hdr *mhdr, ip_hdr *ihdr,
 // 			udp_fhdr_hdr *uhdr,
@@ -237,6 +237,9 @@ int correct_ED = 0;
 // 	return total_length;
 // }
 
+double receive_rate;
+double send_rate;
+
 static int l2fwd_main_loop_send(void)
 {
 
@@ -259,10 +262,10 @@ static int l2fwd_main_loop_send(void)
 	lcore_id = rte_lcore_id();
 	qconf = &lcore_queue_conf[lcore_id]; //此处每一个lcore从全局的conf中获取属于自己的conf
 
-	double recieve_rate = 0;
-	double send_rate = 0;
+	receive_rate = 0.0;
+	send_rate = 0.0;
 	int mac_length_send = PKG_LEN;
-	int mac_length_recieve = PKG_LEN;
+	int mac_length_receive = PKG_LEN;
 
 	RTE_LOG(INFO, L2FWD, "entering main loop send on lcore %u\n", lcore_id);
 
@@ -317,8 +320,8 @@ static int l2fwd_main_loop_send(void)
 					print_stats();
 					printf("%d\n", running_second);
 					send_rate = (port_statistics[portid].tx * mac_length_send * 8 / running_second) / 1000000000.0;
-					recieve_rate = (port_statistics[portid].rx * mac_length_recieve * 8 / running_second) / 1000000000.0;
-					printf("send_rate= %f Gb\nrecieve_rate= %f Gb\n", send_rate, recieve_rate);
+					receive_rate = (port_statistics[portid].rx * mac_length_receive * 8 / running_second) / 1000000000.0;
+					printf("send_rate = %f Gbps\nreceive_rate = %f Gbps\n", send_rate, receive_rate);
 					printf("err_pkg_times= %d\n", err_pkg_times);
 					/* reset the timer */
 					timer_tsc = 0;
@@ -336,12 +339,12 @@ uint8_t **buffer;
 sem_t sem_rw;
 
 static void
-l2fwd_main_loop_recieve(void)
+l2fwd_main_loop_receive(void)
 {
 	read_write_state = 0;
 	struct rte_mbuf *pkts_burst[MAX_PKT_BURST];
 	unsigned lcore_id, portid, nb_rx;
-	int package_recieved = 0;
+	int package_received = 0;
 
 	uint8_t *adcnt = NULL;
 	int indx_buffer = 0;
@@ -351,7 +354,7 @@ l2fwd_main_loop_recieve(void)
 	// 	buffer[i] = buffer[i - 1] + PKG_LEN;	
 
 	lcore_id = rte_lcore_id();
-	RTE_LOG(INFO, L2FWD, "entering main loop recieve on lcore %u\n", lcore_id);
+	RTE_LOG(INFO, L2FWD, "entering main loop receive on lcore %u\n", lcore_id);
 
 	while ((!force_quit) && (read_write_state == 0))
 	{
@@ -360,11 +363,11 @@ l2fwd_main_loop_recieve(void)
 
 		port_statistics[portid].rx += nb_rx;
 
-		// if (package_recieved < 400)
+		// if (package_received < 400)
 		for (int j = 0; j < nb_rx; j++)
 		{
-			// print_mbuf_recieve(pkts_burst[j]);
-			rte_ring_sp_enqueue(ring_recieve, pkts_burst[j]);
+			// print_mbuf_receive(pkts_burst[j]);
+			rte_ring_sp_enqueue(ring_receive, pkts_burst[j]);
 
 			// adcnt = rte_pktmbuf_mtod(pkts_burst[j], uint8_t *);
 			// adcnt += 42;
@@ -380,7 +383,7 @@ l2fwd_main_loop_recieve(void)
 			// 	break;
 			// }
 
-			package_recieved++;
+			package_received++;
 			// rte_pktmbuf_free(pkts_burst[j]);
 			if (force_quit)
 				break;
@@ -462,7 +465,7 @@ l2fwd_main_c(void)
 
 	while (!force_quit)
 	{
-		if (rte_ring_sc_dequeue(ring_recieve, e) < 0)
+		if (rte_ring_sc_dequeue(ring_receive, e) < 0)
 			;
 		else
 		{
@@ -480,7 +483,7 @@ l2fwd_main_c(void)
 				if (h->ldx_sum != ldx_last + 1)
 				{
 					// err_pkg_times++;
-					num_err_pkg += (h->ldx_sum - ldx_last + 1);
+					err_pkg_num += (h->ldx_sum - ldx_last + 1);
 					err_pkg_times++;
 				}
 				ldx_last = h->ldx_sum;
@@ -493,7 +496,7 @@ l2fwd_main_c(void)
 			}
 			else
 			{
-				num_data_nvld++;
+				nvld_pkg_num++;
 				// write_data(fp, adcnt);
 				fwrite(adcnt, sizeof(uint8_t), 1360 + 48, fp);
 			}			
@@ -511,9 +514,9 @@ l2fwd_launch_one_lcore_send(__attribute__((unused)) void *dummy)
 	return 0;
 }
 static int
-l2fwd_launch_one_lcore_recieve(__attribute__((unused)) void *dummy)
+l2fwd_launch_one_lcore_receive(__attribute__((unused)) void *dummy)
 {
-	l2fwd_main_loop_recieve();
+	l2fwd_main_loop_receive();
 	return 0;
 }
 l2fwd_launch_one_lcore_p(__attribute__((unused)) void *dummy)
@@ -640,10 +643,10 @@ int main(int argc, char **argv)
 		rte_exit(EXIT_FAILURE, "Cannot init ring_send\n");
 	printf("ring_send create done\n");
 
-	ring_recieve = rte_ring_create("RING_RECIEVE", 1024, rte_socket_id(), 0);
-	if (ring_recieve == NULL)
-		rte_exit(EXIT_FAILURE, "Cannot init ring_recieve\n");
-	printf("ring_recieve create done\n");
+	ring_receive = rte_ring_create("RING_receive", 1024, rte_socket_id(), 0);
+	if (ring_receive == NULL)
+		rte_exit(EXIT_FAILURE, "Cannot init ring_receive\n");
+	printf("ring_receive create done\n");
 
 	//check ethernet ports
 	nb_ports = rte_eth_dev_count();
@@ -728,7 +731,7 @@ int main(int argc, char **argv)
 	sem_init(&sem_rw, 0, 0);
 	/* launch tasks on lcore */
 	rte_eal_remote_launch(l2fwd_launch_one_lcore_c, NULL, 1);
-	rte_eal_remote_launch(l2fwd_launch_one_lcore_recieve, NULL, 2);
+	rte_eal_remote_launch(l2fwd_launch_one_lcore_receive, NULL, 2);
 	// sleep(10);
 	rte_eal_remote_launch(l2fwd_launch_one_lcore_p, NULL, 3);
 	sleep(1);
@@ -778,7 +781,9 @@ int main(int argc, char **argv)
 
 	printf("Bye...\n");
 	print_stats();
-	printf("err_pkg_times=%d,num_err_pkg=%d,num_data_nvld=%d,\ncorrect_BE=%ld,correct_ED=%ld,incomplete_pkg=%ld\n",
-		   err_pkg_times,num_err_pkg, num_data_nvld, correct_BE, correct_ED, correct_BE - correct_ED);
+	printf("err_pkg_times = %d, err_pkg_num = %d, nvld_pkg_num=%d\n",
+		   err_pkg_times, err_pkg_num, nvld_pkg_num);
+	printf("send_rate = %.2fGbps, receive_rate = %.2fGbps\n",
+		   send_rate, receive_rate);
 	return ret;
 }

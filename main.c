@@ -46,8 +46,6 @@
 
 static volatile bool force_quit;
 
-#define PKG_LEN (MAX_PKG_LEN + INFO_PKG_HEAD_LEN + DATA_END_LEN)
-
 #define RTE_LOGTYPE_L2FWD RTE_LOGTYPE_USER1
 
 #define NB_MBUF 8192
@@ -264,8 +262,8 @@ static int l2fwd_main_loop_send(void)
 
 	receive_rate = 0.0;
 	send_rate = 0.0;
-	int mac_length_send = PKG_LEN;
-	int mac_length_receive = PKG_LEN;
+	int mac_length_send = INFO_PKG_LEN;
+	int mac_length_receive = INFO_PKG_LEN;
 
 	RTE_LOG(INFO, L2FWD, "entering main loop send on lcore %u\n", lcore_id);
 
@@ -405,7 +403,7 @@ l2fwd_main_p(void)
 
 	uint8_t *adcnt = NULL;
 	int packet_num_threw_in_ring = 0;
-	int datalength = MAX_PKG_LEN + INFO_PKG_HEAD_LEN + MAC_HEAD_LEN;
+	int datalength = INFO_PKG_LEN + MAC_HEAD_LEN;
 
 	int total_length = 0;
 
@@ -421,7 +419,7 @@ l2fwd_main_p(void)
 	info_pkg_head_t h;
 	// init_dl_info_pkg_head(&h);
 
-	for (int i = 0; i < MAX_PKG_LEN; i++)
+	for (int i = 0; i < INFO_PKG_LEN; i++)
 		data_to_be_sent[i] = 0xFF;
 
 	while (!force_quit)
@@ -492,13 +490,13 @@ l2fwd_main_c(void)
 
 			if (h->data_vld == 0xFFFFFFFF)
 			{
-				fwrite(adcnt, sizeof(uint8_t), 1360 + 48, fp);
+				fwrite(adcnt, sizeof(uint8_t), 1360 + 48 + 8, fp);
 			}
 			else
 			{
 				nvld_pkg_num++;
 				// write_data(fp, adcnt);
-				fwrite(adcnt, sizeof(uint8_t), 1360 + 48, fp);
+				// fwrite(adcnt, sizeof(uint8_t), 1360 + 48 + 8, fp);
 			}			
 
 			rte_pktmbuf_free(*(struct rte_mbuf **)e);

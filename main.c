@@ -202,39 +202,6 @@ int err_pkg_times = 0;
 int err_pkg_num = 0;
 int nvld_pkg_num = 0;
 int vld_pkg_num = 0;
-// int correct_BE = 0;
-// int correct_ED = 0;
-
-// int package(mac_hdr *mhdr, ip_hdr *ihdr,
-// 			udp_fhdr_hdr *uhdr,
-// 			info_pkg_head_t *h,
-// 			unsigned char *data,
-// 			struct rte_mbuf *m)
-// {
-// 	uint8_t *adcnt = NULL;
-// 	int total_length = 42 + 16 + h->pack_len;
-
-// 	if (total_length > 59)
-// 		rte_pktmbuf_append(m, total_length);
-// 	else
-// 		rte_pktmbuf_append(m, 60);
-
-// 	adcnt = rte_pktmbuf_mtod(m, uint8_t *);
-
-// 	load_udp_head(mhdr, ihdr, uhdr, adcnt); // checksum位置0
-// 	adcnt += 42;
-
-// 	load_info_pkg_head_dl(h, adcnt);
-// 	adcnt += 16;
-
-// 	for (int i = 0; i < h->pack_len; i++)
-// 	{
-// 		*adcnt = data[i];
-// 		*adcnt++;
-// 	}
-
-// 	return total_length;
-// }
 
 double receive_rate;
 double send_rate;
@@ -470,7 +437,6 @@ l2fwd_main_p(void)
 	init_ip_hdr(&ihdr, uhdr.length);
 
 	info_pkg_head_t h;
-	// init_dl_info_pkg_head(&h);
 
 	for (int i = 0; i < INFO_PKG_LEN; i++)
 		data_to_be_sent[i] = 0xFF;
@@ -770,32 +736,6 @@ int main(int argc, char **argv)
 			break;
 		}
 	}
-
-	// FILE *fp;
-	// FILE *fpp;
-	// struct rte_mbuf *m;
-	// m=rte_pktmbuf_alloc(l2fwd_pktmbuf_pool);
-
-	// uint8_t * adcnt;
-
-	// for(adcnt=(uint8_t*)m->buf_addr;adcnt<(uint8_t*)rte_pktmbuf_mtod(m,uint8_t*);adcnt++)
-	// 	*adcnt=0xaa;
-	// for(adcnt=rte_pktmbuf_mtod(m,uint8_t*);adcnt<rte_pktmbuf_mtod(m,uint8_t*)+m->data_len;adcnt++)
-	// 	*adcnt=0xaa;
-	// for(adcnt=rte_pktmbuf_mtod(m,uint8_t*)+m->data_len;adcnt<(uint8_t*)m->buf_addr+m->buf_len;adcnt++)
-	// 	*adcnt=0xaa;
-
-	// fp=fopen("status","w");
-	// struct rte_ring *r = rte_ring_create("MY_RING", 1024,rte_socket_id(), 0);
-	// rte_ring_dump (fp, r);
-	// rte_ring_sp_enqueue(r,m);
-	// rte_ring_dump (fp, r);
-	// rte_ring_sc_dequeue(r,e);
-	// rte_ring_dump (fp, r);
-	// fclose(fp);
-	// print_mbuf_send(*(struct rte_mbuf **)e,fpp);
-	// rte_pktmbuf_free(*(struct rte_mbuf **)e);
-	// print_mbuf_send(*(struct rte_mbuf **)e,fpp);
 
 	portid = 0;
 

@@ -1,4 +1,0 @@
-sudo modprobe uio_pci_generic
-sudo /home/mimo5g1/dpdk/usertools/dpdk-devbind.py -b uio_pci_generic 0000:07:00.0
-sudo /home/mimo5g1/dpdk/usertools/dpdk-devbind.py -b uio_pci_generic 0000:07:00.1
-

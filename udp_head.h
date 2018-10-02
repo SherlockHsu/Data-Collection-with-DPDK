@@ -3,7 +3,7 @@
 
 #include <stdint.h>
 
-#define WHOLE_UDP_HEAD_LEN (UDP_HEAD_H + IP_HEAD_LEN + MAC_HEAD_LEN)
+#define WHOLE_UDP_HEAD_LEN (UDP_HEAD_LEN + IP_HEAD_LEN + MAC_HEAD_LEN)
 #define UDP_HEAD_LEN 8
 #define IP_HEAD_LEN 20
 #define MAC_HEAD_LEN 14

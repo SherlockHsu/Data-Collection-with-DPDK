@@ -201,6 +201,7 @@ volatile uint8_t send_en = 0x00; //此变量后面改为全局变量 00停止发
 int err_pkg_times = 0;
 int err_pkg_num = 0;
 int nvld_pkg_num = 0;
+int vld_pkg_num = 0;
 // int correct_BE = 0;
 // int correct_ED = 0;
 
@@ -237,7 +238,6 @@ int nvld_pkg_num = 0;
 
 double receive_rate;
 double send_rate;
-
 static int l2fwd_main_loop_send(void)
 {
 
@@ -331,30 +331,43 @@ static int l2fwd_main_loop_send(void)
 	}
 }
 
-#define SIZE_OF_BUFFER 10000
-volatile int read_write_state; // 0:read; 1:write
+#define SIZE_OF_BUFFER 20
+#define LEN_OF_BUFFER 10000
+// #define LEN_OF_BUFFER 1048576
+// volatile int readable;
+// volatile int writable;
+int indx_read;
+int indx_write;
 uint8_t **buffer;
-sem_t sem_rw;
+sem_t sem_r;
+sem_t sem_w;
 
 static void
 l2fwd_main_loop_receive(void)
 {
-	read_write_state = 0;
 	struct rte_mbuf *pkts_burst[MAX_PKT_BURST];
 	unsigned lcore_id, portid, nb_rx;
 	int package_received = 0;
-
 	uint8_t *adcnt = NULL;
-	int indx_buffer = 0;
-	// buffer = (uint8_t **)malloc(sizeof(uint8_t *) * SIZE_OF_BUFFER);
-	// buffer[0] = (uint8_t *)malloc(sizeof(uint8_t) * SIZE_OF_BUFFER * PKG_LEN);
-	// for (int i = 1; i < SIZE_OF_BUFFER; i++)
-	// 	buffer[i] = buffer[i - 1] + PKG_LEN;	
+
+	indx_write = 0;
+	buffer = (uint8_t **)malloc(sizeof(uint8_t *) * SIZE_OF_BUFFER);
+	buffer[0] = (uint8_t *)malloc(sizeof(uint8_t) * SIZE_OF_BUFFER * LEN_OF_BUFFER * INFO_PKG_LEN);
+	// memset(buffer[0],0xFF,sizeof(uint8_t) * SIZE_OF_BUFFER * LEN_OF_BUFFER * INFO_PKG_LEN);
+	for (int i = 1; i < SIZE_OF_BUFFER; i++)
+		buffer[i] = buffer[i - 1] + LEN_OF_BUFFER * INFO_PKG_LEN;
+	uint8_t *pbuffer = buffer[0];
+	int32_t cnt = 0;
+
+	info_pkg_head_t h_t;
+	info_pkg_head_t *h = &h_t;
+	uint64_t ldx_last = 0;
 
 	lcore_id = rte_lcore_id();
 	RTE_LOG(INFO, L2FWD, "entering main loop receive on lcore %u\n", lcore_id);
 
-	while ((!force_quit) && (read_write_state == 0))
+	sem_wait(&sem_w);
+	while (!force_quit)
 	{
 		portid = 0;
 		nb_rx = rte_eth_rx_burst((uint8_t)portid, 0, pkts_burst, MAX_PKT_BURST);
@@ -365,33 +378,73 @@ l2fwd_main_loop_receive(void)
 		for (int j = 0; j < nb_rx; j++)
 		{
 			// print_mbuf_receive(pkts_burst[j]);
-			rte_ring_sp_enqueue(ring_receive, pkts_burst[j]);
+			// rte_ring_sp_enqueue(ring_receive, pkts_burst[j]);
 
-			// adcnt = rte_pktmbuf_mtod(pkts_burst[j], uint8_t *);
-			// adcnt += 42;
-			// memcpy(buffer[indx_buffer], adcnt, PKG_LEN);
-			// indx_buffer++;
-			// if (indx_buffer >= SIZE_OF_BUFFER)
-			// {
-			// 	indx_buffer = 0;
-			// 	read_write_state = 1;
-			// 	sem_post(&sem_rw);
-			// 	for (int i = j; i < nb_rx; i++)
-			// 		rte_pktmbuf_free(pkts_burst[i]);
-			// 	break;
-			// }
+			adcnt = rte_pktmbuf_mtod(pkts_burst[j], uint8_t *);
+			adcnt += WHOLE_UDP_HEAD_LEN;
+
+			get_info_pkg_head(h, adcnt);
+			if (!ldx_last)
+			{
+				ldx_last = h->ldx_sum;
+			}
+			else
+			{
+				if (h->ldx_sum != ldx_last + 1)
+				{
+					err_pkg_num += (h->ldx_sum - ldx_last + 1);
+					err_pkg_times++;
+				}
+				ldx_last = h->ldx_sum;
+			}
+
+			if (h->data_vld == 0xFFFFFFFF)
+			{
+				memcpy(pbuffer, adcnt, INFO_PKG_LEN);
+				pbuffer += INFO_PKG_LEN;
+				cnt++;
+				if (cnt >= LEN_OF_BUFFER)
+				{
+					cnt = 0;
+					indx_write++;
+					if (indx_write >= SIZE_OF_BUFFER)
+						indx_write = 0;
+					pbuffer = buffer[indx_write];
+					sem_post(&sem_r);
+					sem_wait(&sem_w);
+				}
+				vld_pkg_num++;
+			}
+			else
+			{
+				// memcpy(pbuffer, adcnt, INFO_PKG_LEN);
+				// pbuffer += INFO_PKG_LEN;
+				// cnt++;
+				// if (cnt >= LEN_OF_BUFFER)
+				// {
+				// 	cnt = 0;
+				// 	indx_write++;
+				// 	if (indx_write >= SIZE_OF_BUFFER)
+				// 		indx_write = 0;
+				// 	pbuffer = buffer[indx_write];
+				// 	sem_post(&sem_r);
+				// 	sem_wait(&sem_w);
+				// }
+				nvld_pkg_num++;
+			}			
 
 			package_received++;
-			// rte_pktmbuf_free(pkts_burst[j]);
+			rte_pktmbuf_free(pkts_burst[j]);
+
 			if (force_quit)
 				break;
 		}
 		// else
 		// 	break;
 	}
-	// sem_post(&sem_rw);
-	// free(buffer[0]);
-	// free(buffer);
+	sem_post(&sem_r);
+	free(buffer[0]);
+	free(buffer);
 }
 
 static void
@@ -454,54 +507,25 @@ l2fwd_main_c(void)
 	// 内存缓冲相关初始化
 	lcore_id = rte_lcore_id();
 	RTE_LOG(INFO, L2FWD, "entering main loop consume on lcore %u\n", lcore_id);
-	
+
 	info_pkg_head_t h_t;
 	info_pkg_head_t *h = &h_t;
 	uint64_t ldx_last = 0;
 	FILE *fp;
-	fp = fopen("vld_data.bin","w+");
+	fp = fopen("vld_data.bin", "wb+");
 
+	indx_read = 0;
+	sem_wait(&sem_r);
 	while (!force_quit)
 	{
-		if (rte_ring_sc_dequeue(ring_receive, e) < 0)
-			;
-		else
-		{
-			adcnt = rte_pktmbuf_mtod(*(struct rte_mbuf **)e, uint8_t *);
-			adcnt += 42;
-			get_info_pkg_head(h, adcnt);
-			// adcnt += INFO_PKG_HEAD_LEN;
-
-			if (!ldx_last)
-			{
-				ldx_last = h->ldx_sum;
-			}
-			else
-			{
-				if (h->ldx_sum != ldx_last + 1)
-				{
-					// err_pkg_times++;
-					err_pkg_num += (h->ldx_sum - ldx_last + 1);
-					err_pkg_times++;
-				}
-				ldx_last = h->ldx_sum;
-			}
-			// fprintf(fp,"%llu\n",h->ldx_sum);
-
-			if (h->data_vld == 0xFFFFFFFF)
-			{
-				fwrite(adcnt, sizeof(uint8_t), 1360 + 48 + 8, fp);
-			}
-			else
-			{
-				nvld_pkg_num++;
-				// write_data(fp, adcnt);
-				// fwrite(adcnt, sizeof(uint8_t), 1360 + 48 + 8, fp);
-			}			
-
-			rte_pktmbuf_free(*(struct rte_mbuf **)e);
-		}
+		fwrite(buffer[indx_read], sizeof(uint8_t), LEN_OF_BUFFER * INFO_PKG_LEN, fp);
+		sem_post(&sem_w);
+		indx_read++;
+		if (indx_read >= SIZE_OF_BUFFER)
+			indx_read = 0;
+		sem_wait(&sem_r);		
 	}
+	sem_post(&sem_w);
 	fclose(fp);
 }
 
@@ -726,13 +750,16 @@ int main(int argc, char **argv)
 	check_all_ports_link_status(1, 0x1);
 
 	ret = 0;
-	sem_init(&sem_rw, 0, 0);
+
+	sem_init(&sem_r, 0, 0);
+	sem_init(&sem_w, 0, SIZE_OF_BUFFER);
+
 	/* launch tasks on lcore */
 	rte_eal_remote_launch(l2fwd_launch_one_lcore_c, NULL, 1);
 	rte_eal_remote_launch(l2fwd_launch_one_lcore_receive, NULL, 2);
 	// sleep(10);
 	rte_eal_remote_launch(l2fwd_launch_one_lcore_p, NULL, 3);
-	sleep(1);
+	// sleep(1);
 	rte_eal_remote_launch(l2fwd_launch_one_lcore_send, NULL, 4);
 
 	RTE_LCORE_FOREACH_SLAVE(lcore_id)
@@ -779,9 +806,9 @@ int main(int argc, char **argv)
 
 	printf("Bye...\n");
 	print_stats();
-	printf("err_pkg_times = %d, err_pkg_num = %d, nvld_pkg_num=%d\n",
-		   err_pkg_times, err_pkg_num, nvld_pkg_num);
-	printf("send_rate = %.2fGbps, receive_rate = %.2fGbps\n",
+	printf("err_pkg_times = %d, err_pkg_num = %d, nvld_pkg_num=%d, vld_pkg_num=%d\n",
+		   err_pkg_times, err_pkg_num, nvld_pkg_num, vld_pkg_num);
+	printf("sent_rate = %.2fGbps, received_rate = %.2fGbps\n",
 		   send_rate, receive_rate);
 	return ret;
 }

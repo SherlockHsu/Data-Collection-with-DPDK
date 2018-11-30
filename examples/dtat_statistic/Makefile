@@ -1,12 +1,15 @@
 CC		= gcc
 SRCS = $(wildcard *.c ../../src/*.c)
-OBJS = $(SRCS:.c = .o)
+OBJS = $(patsubst %.c, %.o, $(SRCS))
 INCS = -I../../inc
 DEST	= main
 CFLAGS	= -Wall -m64
 
-$(DEST): $(OBJS)
-	$(CC) -o $(DEST) $(OBJS) $(CFLAGS) $(INCS)
+$(DEST) : $(OBJS)
+	$(CC) -o $@ $^ $(CFLAGS) $(INCS)
+
+%.o : %.c
+	$(CC) -o $@ -c $< $(INCS)
 
 .PHONY:clean
 clean:

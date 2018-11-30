@@ -1,4 +1,5 @@
 #include "udp_head.h"
+#include <stdio.h>
 
 void load_udp_head(mac_hdr *mhdr, ip_hdr *ihdr, udp_fhdr_hdr *uhdr, uint8_t *adcnt)
 {
@@ -195,18 +196,18 @@ unsigned short get_checksum(unsigned short *buffer, int size) //size是字节数
         cksum += *buffer;
         buffer++;
         size -= sizeof(short);
-        printf("size=%d  checksum=%x\n", size, cksum);
+        printf("size=%d  checksum=%lx\n", size, cksum);
     }
     if (size)
     {
         cksum += *(unsigned short *)buffer << 8;
         printf("size=%d  buffer=%x\n", 1, *buffer);
-        printf("size=%d  checksum=%x\n", size, cksum);
+        printf("size=%d  checksum=%lx\n", size, cksum);
     }
-    printf("checksum00=%x\n", cksum);
+    printf("checksum00=%lx\n", cksum);
     cksum = (cksum >> 16) + (cksum & 0xffff);
-    printf("+ checksum11=%x\n", cksum);
+    printf("+ checksum11=%lx\n", cksum);
     cksum += (cksum >> 16);
-    printf("= checksum22=%x\n", cksum);
+    printf("= checksum22=%lx\n", cksum);
     return (unsigned short)(~cksum);
 }

@@ -44,9 +44,9 @@ include $(RTE_SDK)/mk/rte.vars.mk
 APP = main
 
 # all source are stored in SRCS-y
-SRCS-y := main.c info_pkg_head.c udp_head.c
+SRCS-y := main.c $(wildcard ../../../src/*.c)
 
-CFLAGS += -O3
+CFLAGS += -I../../../inc -O3
 CFLAGS += $(WERROR_FLAGS)
 
 include $(RTE_SDK)/mk/rte.extapp.mk

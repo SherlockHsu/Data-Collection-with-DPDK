@@ -4,3 +4,6 @@ build
 *.o.cmd
 *.bin
 .vscode
+*.txt
+*.bin
+main

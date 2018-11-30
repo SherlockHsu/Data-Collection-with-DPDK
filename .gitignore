@@ -3,3 +3,4 @@ build
 *.o.d
 *.o.cmd
 *.bin
+.vscode

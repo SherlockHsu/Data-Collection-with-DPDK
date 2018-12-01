@@ -3,7 +3,7 @@ SRCS = $(wildcard *.c ../../src/*.c)
 OBJS = $(patsubst %.c, %.o, $(SRCS))
 INCS = -I../../inc
 DEST	= main
-CFLAGS	= -Wall -m64
+CFLAGS	= -Wall -m64 -g
 
 $(DEST) : $(OBJS)
 	$(CC) -o $@ $^ $(CFLAGS) $(INCS)

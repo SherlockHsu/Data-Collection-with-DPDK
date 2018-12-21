@@ -13,4 +13,4 @@ $(DEST) : $(OBJS)
 
 .PHONY:clean
 clean:
-	rm -f $(DEST) $(OBJS) *.txt
+	rm -f $(DEST) $(OBJS) *.txt */*.txt

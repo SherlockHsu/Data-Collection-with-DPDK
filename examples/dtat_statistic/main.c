@@ -29,7 +29,7 @@ int main(int argc, char **argv)
     switch (argc)
     {
     case 1:
-        fr = fopen("vld_data.bin", "rb");
+        fr = fopen("../data_collection_pp/vld_data.bin", "rb");
         if (fr == NULL)
         {
             printf("ERROR: FILE \"%s\" DOSE NOT EXISIT.\n", "vld_data.bin");

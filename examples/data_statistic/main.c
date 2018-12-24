@@ -8,7 +8,7 @@
 // #define PRINTF_DEFINE
 #define STATISTICS
 
-#define MAX_FRAME_NUM 100
+#define MAX_FRAME_NUM 400
 #define RX_ANT_NUM 4
 
 void unpack_vld_data_complex16(uint8_t *adcnt, uint32_t len, int16_t *datar, int16_t *datai);
